@@ -1,0 +1,583 @@
+---
+title: "Class 11: Bioinformatics part 2"
+author: "Sally Alskaf  200030255"
+format: pdf
+editor: visual
+toc: true
+---
+
+## Background 
+
+We ran 3 AlphaFold2 Predictions,
+
+
+- HIV-PR_monomer
+_ HIV-PR_dimer
+- My find-a-gene protein sequence
+
+
+Here we analyze the resulting models and make some diagnostic plots that inform on model reliability 
+
+
+## HIV-PR Monomer
+
+Reading Monomer File
+
+```{r}
+list.files(path="HIV_monomer_94b5b_1",
+           full.names = FALSE,
+           pattern= ".pdb")
+```
+
+```{r}
+pdb_files <- list.files(path = "HIV_monomer_94b5b_1",
+                        full.names = TRUE,
+                        pattern = ".pdb")
+```
+
+
+### Aligning PDB File
+
+```{r}
+library(bio3d)
+
+pdb<- pdbaln(pdb_files, fit=TRUE, exefile="msa")
+pdb
+             
+```
+
+
+### RMSD
+
+Calculate the RMSD of all models to each other (i.e. pairwise RMSD)
+
+```{r}
+rd <- rmsd(pdb, fit = TRUE)
+range(rd)
+```
+
+### RMSD Heatmap
+
+```{r}
+library(pheatmap)
+
+colnames(rd) <- paste0("m", 1:5)
+rownames(rd) <- paste0("m", 1:5)
+
+pheatmap(rd)
+```
+
+### pLDDT 
+
+```{r}
+ plotb3(pdb$b[1,], typ= "l", lwd=2)
+points(pdb$b[2,], typ="l",col="red")
+points(pdb$b[3,], typ="l", col="blue")
+points(pdb$b[4,], typ="l", col="darkgreen")
+points(pdb$b[5,], typ="l", col="orange")
+
+```
+
+
+### PAE score plots
+
+```{r}
+
+library(jsonlite)
+
+
+pae_files_monomer <- list.files(
+  path="HIV_monomer_94b5b_1",
+  pattern=".*model.*\\.json",
+  full.names=TRUE
+)
+
+pae_files_monomer
+```
+
+```{r}
+pae1_monomer <- read_json(
+  pae_files_monomer[1],
+  simplifyVector=TRUE
+)
+
+pae5_monomer <- read_json(
+  pae_files_monomer[5],
+  simplifyVector=TRUE
+)
+```
+
+
+```{r}
+attributes(pae1_monomer)
+
+head(pae1_monomer$plddt)
+
+pae1_monomer$max_pae
+pae5_monomer$max_pae
+
+```
+
+
+```{r}
+plot.dmat(pae1_monomer$pae,
+          xlab="Residue Position (i)",
+          ylab="Residue Position (j)",
+          grid.col="black",
+          zlim=c(0,30))
+```
+
+
+```{r}
+plot.dmat(pae5_monomer$pae,
+          xlab="Residue Position (i)",
+          ylab="Residue Position (j)",
+          grid.col="black",
+          zlim=c(0,30))
+```
+
+
+### RMSF
+
+Calculate RMSF - how far apart each amino acid is from across all 5 AlphaFold models
+
+
+```{r}
+
+rf <- rmsf(pdb$xyz)
+
+plotb3(rf, sse=pdb)
+abline(v=100, col="gray", ylab="RMSF")
+
+```
+
+### Residue conservation from alignment file
+
+```{r}
+aln_file <- list.files(path= "HIV_monomer_94b5b_1",
+                       pattern= ".a3m$",
+                       full.names = TRUE)
+
+aln <- read.fasta(aln_file[1], to.upper= TRUE)
+```
+
+### Calculating Residue Conservation
+
+```{r}
+sim <- conserv(aln)
+```
+
+Plot this conservation result.
+
+```{r}
+m1.pdb <- read.pdb(pdb_files[1])
+
+plotb3(sim[1:99], sse=trim.pdb(m1.pdb, chain="A"),
+       ylab="Conservation Score")
+```
+
+
+
+### Consensus Sequence
+
+```{r}
+con <- consensus(aln, cutoff = 0.9)
+con$seq
+```
+
+### Map Conservation Scores onto the PDB Structure
+
+```{r}
+m1.pdb <- read.pdb(pdb_files[1])
+
+sim_fixed <- sim[aln$ali[1,] != "-"]
+
+occ <- vec2resno(sim_fixed, m1.pdb$atom$resno)
+
+write.pdb(m1.pdb, o=occ, file="m1_conserv.pdb")
+```
+
+
+
+
+### AF scores pLDDT Scores
+
+The pLDDT scores are stored in the pdb models in "B-factors" col and in a seprate JSON format file in the results directory. We can use either:
+```{r}
+m1.pdb$atom$b
+```
+
+
+
+
+
+
+
+## HIV-PR Dimer
+
+Reading Dimer File
+
+```{r}
+list.files(path="HIV_Dimer_23119_0",
+           full.names = TRUE,
+           pattern= ".pdb")
+```
+
+```{r}
+dimer_files <- list.files(path = "HIV_Dimer_23119_0",
+                        full.names = TRUE,
+                        pattern = ".pdb")
+```
+
+
+### Aligning PDB File
+
+```{r}
+pdb_dimer <- pdbaln(dimer_files, fit=TRUE, exefile="msa")
+pdb_dimer
+
+```
+
+### RMSD
+
+```{r}
+
+rd_dimer <- rmsd(pdb_dimer, fit = TRUE)
+range(rd_dimer)
+```
+
+### Heatmap
+
+
+```{r}
+library(pheatmap)
+
+colnames(rd_dimer) <- paste0("m", 1:5)
+rownames(rd_dimer) <- paste0("m", 1:5)
+
+pheatmap(rd_dimer)
+```
+
+### pLDDT 
+
+```{r}
+plotb3(pdb_dimer$b[1,], typ="l", lwd=2)
+points(pdb_dimer$b[2,], typ="l", col="red")
+points(pdb_dimer$b[3,], typ="l", col="blue")
+points(pdb_dimer$b[4,], typ="l", col="darkgreen")
+points(pdb_dimer$b[5,], typ="l", col="orange")
+```
+
+
+### PAE score plots
+
+```{r}
+library(jsonlite)
+
+pae_files <- list.files(path="HIV_Dimer_23119_0",
+                        pattern=".*model.*\\.json",
+                        full.names=TRUE)
+
+pae_files
+```
+
+
+```{r}
+pae1 <- read_json(pae_files[1], simplifyVector=TRUE)
+pae5 <- read_json(pae_files[5], simplifyVector=TRUE)
+```
+
+
+```{r}
+attributes(pae1)
+
+pae1$max_pae
+pae5$max_pae
+```
+
+
+
+```{r}
+plot.dmat(pae1$pae,
+          xlab="Residue Position (i)",
+          ylab="Residue Position (j)",
+          grid.col="black",
+          zlim=c(0,30))
+```
+
+
+```{r}
+plot.dmat(pae5$pae,
+          xlab="Residue Position (i)",
+          ylab="Residue Position (j)",
+          grid.col="black",
+          zlim=c(0,30))
+```
+
+
+### RMSF
+
+
+```{r}
+rf_dimer <- rmsf(pdb_dimer$xyz)
+
+plotb3(rf_dimer, ylab="RMSF")
+abline(v=100, col="gray")
+```
+
+
+
+
+### Residue conservation from alignment file
+
+```{r}
+aln_file_dimer <- list.files(path= "HIV_Dimer_23119_0",
+                       pattern= ".a3m$",
+                       full.names = TRUE)
+
+aln_dimer <- read.fasta(aln_file_dimer[1], to.upper= TRUE)
+```
+
+
+### Calculating Residue Conservation
+
+```{r}
+sim_dimer <- conserv(aln_dimer)
+```
+
+Plot this conservation result.
+
+```{r}
+m1_dimer.pdb <- read.pdb(dimer_files[1])
+
+plotb3(sim_dimer[1:99], sse=trim.pdb(m1_dimer.pdb, chain="A"),
+       ylab="Conservation Score")
+```
+
+### Consensus Sequence
+
+```{r}
+con_dimer <- consensus(aln_dimer, cutoff = 0.9)
+con_dimer$seq
+```
+
+### Map Conservation Scores onto the PDB Structure
+
+
+```{r}
+m1_dimer.pdb <- read.pdb(dimer_files[1])
+
+sim_fixed_dimer <- sim_dimer[aln_dimer$ali[1,] != "-"]
+
+occ_dimer <- vec2resno(rep(sim_fixed_dimer, 2),
+                       m1_dimer.pdb$atom$resno)
+
+write.pdb(m1_dimer.pdb, o=occ_dimer,
+          file="m1_dimer_conserv.pdb")
+```
+
+
+### AF scores pLDDT Scores
+
+The pLDDT scores are stored in the pdb models in "B-factors" col and in a seprate JSON format file in the reults dierctory. We can use either:
+
+```{r}
+m1_dimer.pdb$atom$b
+```
+
+
+
+
+
+
+## Find A Gene Project
+
+Reading Find A Gene Project File
+
+
+```{r}
+
+list.files(path="FindAGeneProject_7f476",
+           full.names = TRUE,
+           pattern= ".pdb")
+```
+
+
+
+```{r}
+FindAGeneProject_files <- list.files(path = "FindAGeneProject_7f476",
+                        full.names = TRUE,
+                        pattern = ".pdb")
+```
+
+### Aligning PDB File
+
+```{r}
+library(bio3d)
+
+pdb_FindAGeneProject <- pdbaln(FindAGeneProject_files, fit=TRUE, exefile="msa")
+pdb_FindAGeneProject
+```
+
+### RMSD
+
+Calculate the RMSD of all models to each other (i.e. pairwise RMSD)
+
+```{r}
+rd_FindAGeneProject <- rmsd(pdb_FindAGeneProject, fit=TRUE)
+range(rd_FindAGeneProject)
+```
+
+### Heatmap
+
+```{r}
+library(pheatmap)
+
+colnames(rd_FindAGeneProject) <- paste0("m", 1:5)
+rownames(rd_FindAGeneProject) <- paste0("m", 1:5)
+
+pheatmap(rd_FindAGeneProject)
+```
+
+
+### pLDDT 
+
+```{r}
+plotb3(pdb_FindAGeneProject$b[1,], typ="l", lwd=2)
+points(pdb_FindAGeneProject$b[2,], typ="l", col="red")
+points(pdb_FindAGeneProject$b[3,], typ="l", col="blue")
+points(pdb_FindAGeneProject$b[4,], typ="l", col="darkgreen")
+points(pdb_FindAGeneProject$b[5,], typ="l", col="orange")
+```
+
+
+### PAE Analysis
+
+```{r}
+library(jsonlite)
+
+pae_files_FindAGeneProject <- list.files(
+  path="FindAGeneProject_7f476",
+  pattern=".*model.*\\.json",
+  full.names=TRUE
+)
+
+pae_files_FindAGeneProject
+
+
+```
+```{r}
+pae1_FindAGeneProject <- read_json(
+  pae_files_FindAGeneProject[1],
+  simplifyVector=TRUE
+)
+
+pae5_FindAGeneProject <- read_json(
+  pae_files_FindAGeneProject[5],
+  simplifyVector=TRUE
+)
+
+attributes(pae1_FindAGeneProject)
+
+```
+
+
+```{r}
+head(pae1_FindAGeneProject$plddt)
+```
+
+
+```{r}
+
+
+pae1_FindAGeneProject$max_pae
+pae5_FindAGeneProject$max_pae
+
+```
+
+
+```{r}
+plot.dmat(pae1_FindAGeneProject$pae,
+          xlab="Residue Position (i)",
+          ylab="Residue Position (j)",
+          grid.col="black",
+          zlim=c(0,30))
+```
+
+```{r}
+plot.dmat(pae5_FindAGeneProject$pae,
+          xlab="Residue Position (i)",
+          ylab="Residue Position (j)",
+          grid.col="black",
+          zlim=c(0,30))
+```
+
+
+### RMSF
+
+```{r}
+xyz_FindAGeneProject <- pdb_FindAGeneProject$xyz
+
+rf_FindAGeneProject <- rmsf(xyz_FindAGeneProject)
+
+plotb3(rf_FindAGeneProject, ylab="RMSF")
+```
+
+
+### Residue conservation from alignment file
+
+```{r}
+aln_file_FindAGeneProject <- list.files(path= "FindAGeneProject_7f476",
+                       pattern= ".a3m$",
+                       full.names = TRUE)
+
+aln_FindAGeneProject <- read.fasta(aln_file_FindAGeneProject[1], to.upper= TRUE)
+```
+
+### Calculating Residue Conservation
+
+```{r}
+sim_FindAGeneProject <- conserv(aln_FindAGeneProject)
+```
+
+
+```{r}
+m1_FindAGeneProject.pdb <- read.pdb(FindAGeneProject_files[1])
+
+sim_fixed_FindAGeneProject <- sim_FindAGeneProject[
+  aln_FindAGeneProject$ali[1,] != "-"
+]
+
+plotb3(sim_fixed_FindAGeneProject,
+       ylab="Conservation Score")
+```
+
+
+### Consensus Sequence 
+
+```{r}
+con_FindAGeneProject <- consensus(aln_FindAGeneProject, cutoff = 0.9)
+con_FindAGeneProject$seq
+```
+
+
+
+### Map Conservation Scores onto the PDB Structure
+
+```{r}
+m1_FindAGeneProject.pdb <- read.pdb(FindAGeneProject_files[1])
+
+sim_fixed_FindAGeneProject <- sim_FindAGeneProject[aln_FindAGeneProject$ali[1,] != "-"]
+
+occ_FindAGeneProject <- vec2resno(sim_fixed_FindAGeneProject,
+                       m1_FindAGeneProject.pdb$atom$resno)
+
+write.pdb(m1_FindAGeneProject.pdb, o=occ_FindAGeneProject,
+          file="m1_FindAGeneProject_conserv.pdb")
+```
+
+
+```{r}
+m1_FindAGeneProject.pdb$atom$b
+```
+
